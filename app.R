@@ -1,49 +1,58 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
+# this app is a minimal example of uploading a layout file using the layout uploads module
+library(tidyverse)
+library(dsfworld)
+library(echowritr)
 library(shiny)
+library(shinyalert) # needed to upload layout files
+source("R/upload_layout_module_2.R")
 
-# Define UI for application that draws a histogram
-ui <- fluidPage(
-
-    # Application title
-    titlePanel("Old Faithful Geyser Data"),
-
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-           plotOutput("distPlot")
-        )
-    )
+ui <- fluidPage(useShinyalert(), # required for uploads module
+                sidebarLayout(
+                  sidebarPanel(width = 4,
+                               uploadLayoutUI("daughter", "Upload daughter layout")[[1]], # upload panel
+                               uploadLayoutUI("mother", "Upload mother layout")[[1]]
+                  ),
+                  mainPanel(
+                    p("Daughter standard") %>% strong(),
+                    tableOutput("table_external_daughter"), # table of the layout, accessed outside the module
+                    p("Mother standard") %>% strong(),
+                    tableOutput("table_external_mother"), # table of the layout, accessed outside the module
+                    p("Transfers)") %>% strong(),
+                    tableOutput("transfer_table")
+                  )
+                )
 )
 
-# Define server logic required to draw a histogram
-server <- function(input, output) {
+server <- function(input, output, session) {
+  #### upload layout ####
+  daughter_raw <- uploadLayoutServer("daughter") # upload the data
+  daughter <- reactive({
+    daughter_raw() %>%
+      standardize_layout("daughter",
+      )
+  })
+  output$table_external_daughter <- renderTable(head(daughter()))
+  
+  ## mother
+  mother_raw <- uploadLayoutServer("mother") # upload the data
+  mother <- reactive({
+    mother_raw() %>%
+      standardize_layout("mother")
+  })
+  output$table_external_mother <- renderTable(head(mother()))
+  
+  layouts <- reactive({
+    repair_layout(mother(),
+                  daughter(),
+                  if_missing = "drop",
+                  if_varied = "keep_max",
+                  if_impossible = "scale_down")})
+  
+  transfers <- reactive(calculate_transfers(layouts()$daughter, layouts()$mother, 2.5))
+  output$transfer_table <- renderTable(transfers())
+  # depletion <- monitor_source_depletion(transfers, 35)
 
-    output$distPlot <- renderPlot({
-        # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
-
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white')
-    })
 }
 
-# Run the application 
+
 shinyApp(ui = ui, server = server)
