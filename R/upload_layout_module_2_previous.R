@@ -35,9 +35,6 @@ uploadLayoutServer <- function(id) {
 
     layout_raw <- reactive({
       req(input$file)
-      
-      ## should add an extension validate here
-      # e.g. validate(need(ext == "csv", "Please upload a csv file"))
 
       try_catch_popup(execute_this = dsfworld::read_plate_layout(input$file$datapath) ,
                       error_title = glue::glue("Can't read {id} layout"),
