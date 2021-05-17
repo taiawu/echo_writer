@@ -18,9 +18,9 @@ guess_mother_cols_text <-
 repair_options <- 
   list(
     groups = # vector of groups for repair pickerInput
-        c("If a compound in the daughter is not in the mother...",
-          "If a compound is present in the mother in multiple concentrations...",
-          "If the daughter contains un-achievably high concentrations..."),
+      c("If a compound in the daughter is not in the mother...",
+        "If a compound is present in the mother in multiple concentrations...",
+        "If the daughter contains un-achievably high concentrations..."),
     
     options = # list of options for repair pickerInput
       list(
@@ -33,26 +33,66 @@ repair_options <-
           "Remove these compounds from the daughter",
           "Replace with the highest achieveable concentration",
           "Scale down the concentration of all wells of this compound")),
-
+    
+    values = 
+      list(
+        c("stop",
+          "drop"),
+        c("stop",
+          "keep_max",
+          "keep_most"),
+        c("stop",
+          "drop",
+          "make_max",
+          "scale_down")
+      ),
+    
     guess_selections = # default to stop--no un-anncounced repairs without warning
       c("Stop and warn me",
         "Stop and warn me",
         "Stop and warn me")
   )
 
+##3 translating from the UI text to the programmer text... 
+## for repairs, which do not interact with the data
+repair_group_names <- 
+  tibble(argument = 
+           c("repair_missing", 
+             "repair_varied", 
+             "repair_conc"),
+         group = repair_options$groups
+  )
 
-# groups = 
-#   c("If a compound in the daughter is not in the mother...", 
-#     "If a compound is present in the mother in multiple concentrations...", 
-#     "If the concentration for a compound in the daughter exceeds the concentration in the mother..."),
-# 
-# options = 
-#   list(
-#     c("stop", "drop"),
-#     c("stop", "keep_max", "keep_most"),
-#     c("stop", "drop","make_max", "scale_down")),
-# 
-# guess_selections = 
-#   c("stop", 
-#     "stop",
-#     "stop"))
+repair_list <-    
+  make_picker_lists(
+    groups = repair_options$groups,
+    options = repair_options$options,
+    guess_selections = repair_options$guess_selections)
+
+translate_repairs <- 
+  tibble(group = repair_options$groups,
+         response = repair_options$options,
+         values = repair_options$values) %>%
+  unnest(cols = c(response, values)) %>%
+  left_join( . ,repair_group_names)
+
+## for column, which dos interact with the data
+# daughter
+daughter_group_names <- 
+  tibble(argument = 
+           c("well_col", 
+             "cmpd_col", 
+             "conc_col",
+             "vol_col"),
+         group = groups_daughter_text
+  )
+
+
+# mother
+mother_group_names <- 
+  tibble(argument = 
+           c("well_col", 
+             "cmpd_col", 
+             "conc_col"),
+         group = groups_mother_text
+  )

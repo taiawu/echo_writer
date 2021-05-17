@@ -10,136 +10,77 @@ library(shinyalert) # needed to upload layout files
 library(shiny)
 
 library(reactlog) # make the reactlog, to better understand the app!
-
 # at the start of each session:
-# reactlog::reactlog_enable()
-# options(shiny.reactlog=TRUE) 
+reactlog::reactlog_enable()
+options(shiny.reactlog=TRUE)
 # run the app
 # command-fn-F3
 
 source("picker_input_for_columns_module.R")
-source("upload_layout_module_2.R")
+source("upload_layout_module_2_previous.R")
 source("static_text.R")
-
-get_conc_errors <- #____(helper) trigger informative alert: conc error----#
-  function(daughter, mother){
-    cols <- 
-      c("Destination Well", 
-        "compound", 
-        "mother_conc",
-        "daughter_conc", 
-        "daughter_final_vol")
-    
-    to_repair <- 
-      left_join(daughter, mother, by = "compound") %>%
-      select(all_of(cols)) %>%
-      distinct() %>%
-      group_by(.data$compound) %>%
-      mutate(repair = 
-               if_else(.data$daughter_conc > .data$mother_conc, 
-                       true = "repair", false = "ok")) %>%
-      select(.data$`Destination Well`, .data$compound, .data$repair)
-    
-    
-    list("outcome" = !"repair" %in% to_repair$repair, # to trigger abort
-         "wells" = to_repair %>% # print problem wells in pop-up
-           filter(repair == "repair") %>% 
-           pull(.data$`Destination Well`) %>% 
-           unique() ,
-         "compounds" = to_repair %>% # print problem compounds in pop-up
-           filter(repair == "repair") %>% 
-           pull(.data$compound) %>% 
-           unique())
-  }
-
-get_varied_errors <- #____(helper) trigger informative alert: mother error----#
-  function(mother) {
-    tallied_by_cmpd <- 
-      mother %>%
-      group_by(.data$compound) %>%
-      mutate(n_conc = n_distinct(.data$mother_conc), # how many conc. in mother
-             max_conc = max(.data$mother_conc),
-             min_conc = min(.data$mother_conc)) %>%
-      group_by(.data$compound, .data$mother_conc) %>% # needed if keep_most selected
-      mutate(well_per_conc = n_distinct(.data$`Source Well`)) %>%
-      group_by(.data$compound) %>%
-      mutate(most_wells = max(.data$well_per_conc))
-    
-    list("outcome" = !(max(tallied_by_cmpd$n_conc) > 1),
-         "compounds" = tallied_by_cmpd %>% 
-           filter(n_conc > 1) %>% 
-           pull(compound) %>% 
-           unique()
-    )
-  }
-
-try_catch_popup <- #___(util) ahinyalter pop-ups with custom messages
-  function(execute_this, 
-           error_title = "Error!", 
-           error_subtitle = "Try, try again",
-           warning_title = "Warning!",
-           warning_subtitle = "You've been warned") {
-    tryCatch( {
-      execute_this
-    }, warning = function(w) {
-      shinyalert(warning_title, warning_subtitle)
-    },  error = function(e) {
-      shinyalert(error_title, error_subtitle)
-    })
-  }
-
-repair_list <-    
-  make_picker_lists(
-    groups = repair_options$groups,
-    options = repair_options$options,
-    guess_selections = repair_options)
+source("utils.R") #
 
 # implement modularized app
 ui <- 
   fluidPage(useShinyalert(),
-            titlePanel("Picker Input module -- example"),
+            tags$head(
+              tags$style(HTML(
+                "label { font-size:100%; font-family:Helvetica Neue; margin-bottom: 
+    10px; }"
+              ))
+            ),
+            titlePanel("Write instructions for Echo transfers of (almost!) anything"),
+            
+            #tags$style(".well {background-color:white; border-color:white}"),
             sidebarLayout(
               sidebarPanel(
+p("Step 1. Upload layouts for the mother and daughter plates.") %>% strong(),
                 uploadLayoutUI("daughter", 
                                "Upload daughter layout")[[1]], # upload panel
                 pickColUI("daughter_cols")[[1]], # the actual pickerInput
                 pickColUI("daughter_cols")[[2]], # should be the same
-                hr(),
+                verbatimTextOutput("selection_external_daughter"),
                 
                 uploadLayoutUI("mother", 
                                "Upload mother layout")[[1]],
                 pickColUI("mother_cols")[[1]], #[[1]],  # the actual pickerInput
                 pickColUI("mother_cols")[[2]], # should be the same
-                hr(),
-                
+                #tags$hr(style="border-color: #d9d9d9;"),
                 numericInput(
                   "echo_vol", 
-                  "Echo droplet volume (nL)", 
+                  "Step 2. Set the droplet volume (nL) for the Echo instrument.",
                   value = 25, 
                   min = 0, 
                   max = 100),
-                
                 pickerInput(
                   "repair_methods",
-                  label = "Repair methods", # user can change the label
+                  label = "Step 3.  Resolve any issues in the requested transfers", # user can change the label
                   choices = repair_list$choices, # displays list NAMES
                   selected =  repair_list$selected, 
                   multiple = TRUE,
-                  inline = TRUE, # put label in-line with drop-downs
+                  inline = FALSE, # put label in-line with drop-downs
                   options = 
                     pickerOptions( # good place for ... in later version
                       "max-options-group" = 1,
                       title = "Choose methods to repair"
-                    ))
+                    )),
+                #tags$hr(style="border-color: #d9d9d9;"),
+textInput("save_name", "Step 4. Enter names for the downloaded plots and files.", value = Sys.Date()),
+textAreaInput("notes", "", rows = 2, value = "Add any notes here"),
+                actionButton("go", "Calculate Echo transfers", class = "btn-block")
               ),
               mainPanel(
-                # p("Daughter standard") %>% strong(),
-                # tableOutput("table_external_daughter"), # table of the layout, accessed outside the module
-                # p("Mother standard") %>% strong(),
-                # tableOutput("table_external_mother")#, # table of the layout, accessed outside the module
-                p("Transfers") %>% strong(),
-                verbatimTextOutput("transfer_print"),
-                tableOutput("transfer_table")
+                # Output: Tabset w/ instructions, plots, and user instructions ----
+                tabsetPanel(type = "tabs",
+                            tabPanel("Echo instructions", 
+                                     p("tables will go here"),
+                                     p("Transfers") %>% strong(),
+                                     verbatimTextOutput("transfer_print"),
+                                     tableOutput("transfer_table")),
+                            tabPanel("Plots", p("plots will go here")),
+                            tabPanel("How to use this app", p("instructions will go here"))
+                )
               )
             )
   )
@@ -158,12 +99,15 @@ server <-
     picker_list_daughter <- 
       pickColServer(
         "daughter_cols", 
-        daughter_raw, 
-        reactive(make_picker_lists(groups_daughter_text)), # see static_text.R
-        reactive(guess_daughter_cols_text), # see static_text.R
+        data = daughter_raw, 
+        groups = reactive(groups_daughter_text), # see static_text.R
+        guess_selections = reactive(guess_daughter_cols_text), # see static_text.R
+        .multiple = TRUE,
+        .inline = FALSE,
         drop_options = "disp", 
         picker_title = "this doesn't show up", 
-        picker_label = "Daughter")
+        picker_label = "Which variables contain the needed information?"#"Daughter"
+        )
     
     daughter_cols <- 
       reactive(
@@ -194,12 +138,16 @@ server <-
     picker_list_mother <- 
       pickColServer(
         "mother_cols", 
-        mother_raw, 
-        reactive(make_picker_lists(groups_mother_text)), # see static_text.R
-        reactive(guess_mother_cols_text), # see static_text.R
+        data = mother_raw, 
+        groups = reactive(groups_mother_text), # see static_text.R
+        guess_selections = reactive(guess_mother_cols_text), # see static_text.R
+        .multiple = TRUE,
+        .inline = FALSE,
         drop_options = "disp", 
         picker_title = "this doesn't show up", 
-        picker_label = "Mother")
+        picker_label = "Which variables contain the needed information?" #"",#"Mother"
+
+        )
     
     mother_cols <- 
       reactive(
@@ -275,26 +223,99 @@ server <-
       
     })
     
-    
-    ##### what's going on here? 
-    # how do you wait to execute until a reactive expression exits?
-    transfers <- reactive({
-      #req( is.reactive(layouts() ) )# cancel if layout() doesn't exist yet
-      calculate_transfers(layouts()$daughter, layouts()$mother, input$echo_vol)
-    })
-    
-    depletion <- reactive({
-      # req( is.reactive(transfers() )) # what is transfers fails--should we do a if(success) or return NULL for transfers calc?
-      monitor_source_depletion(transfers(), 35)
-    })
-    
-    output$transfer_print <-
-      renderPrint({
-        req(is.reactive(transfers()))
+    observeEvent(input$go, {
+      repairs <- 
+        reactive(
+          get_repairs(
+            input$repair_methods, #repair_list$selected, # comes from UI
+            translate_repairs) 
+        )
+      
+      try_catch_popup(
+        execute_this = rlang::abort(all(daughter()$compound %in% mother()$compound)),
+        error_title = "Daughter plate has compounds not present in the mother plate",
+        error_subtitle = 
+          glue::glue("Edit your layout, or see the 'Repair methods' 
+                 drop-down menu for ways to proceed anyway. 
+                 \nMissing compounds: {
+                 glue_collapse(unique(
+                 daughter()$compound[!daughter()$compound %in% mother()$compound]), 
+                 sep = ', ')}"))
+      
+      try_catch_popup(
+        execute_this = rlang::abort(get_varied_errors(mother())$outcome),
+        error_title = "Single compound present in mother at multiple concentrations",
+        error_subtitle = 
+          glue::glue("This isn't supported at this time. 
+                 Edit your mother layout, or see the 'Repair methods' 
+                 drop-down menu for ways to proceed anyway. 
+                \nThis issue was found in compounds:
+                {glue_collapse(get_varied_errors(mother())$compounds, sep = ', ')}"))
+      
+      try_catch_popup(
+        execute_this = rlang::abort(get_conc_errors(daughter(), mother())$outcome),
+        error_title = "Daughter plate has un-achievably high concentrations",
+        error_subtitle = 
+          glue::glue("Edit your layout, or see the 'Repair methods' 
+                        drop-down menu for ways to proceed anyway. 
+                      \nThis issue was found in wells: 
+                      {glue_collapse(get_conc_errors(daughter(), 
+                      mother())$wells, sep = ', ')},
+                      \nCorresponding to compounds:
+                      {glue_collapse(get_conc_errors(daughter(), 
+                       mother())$compounds, sep = ', ')}"))
+      
+      layouts <- 
+        reactive(
+        repair_layout(
+          mother(), 
+          daughter(),
+          if_missing = repairs()[["repair_missing"]], 
+          if_varied = repairs()[["repair_varied"]], 
+          if_impossible = repairs()[["repair_conc"]]))
+      
+      transfers <- 
+        reactive(
+          calculate_transfers(
+            layouts()$daughter, 
+            layouts()$mother, 
+            input$echo_vol) 
+        )
         
-        print(transfers())
-        transfers()
-      })
+      depletion <-
+        reactive(
+          monitor_source_depletion(
+            transfers(), 
+            35) ### THIS SHOULD BE USER-SET!! Or at least, have the option to be
+          )
+      
+      output$transfer_table <-
+        renderTable({
+          transfers()
+        })
+        
+    })
+    
+    
+    # ##### what's going on here? 
+    # # how do you wait to execute until a reactive expression exits?
+    # transfers <- reactive({
+    #   # req( layouts() ) # cancel if layout() doesn't exist yet
+    #   calculate_transfers(layouts()$daughter, layouts()$mother, input$echo_vol)
+    # })
+    # 
+    # depletion <- reactive({
+    #   # req( is.reactive(transfers() )) # what is transfers fails--should we do a if(success) or return NULL for transfers calc?
+    #   monitor_source_depletion(transfers(), 35)
+    # })
+    
+    # output$transfer_print <-
+    #   renderPrint({
+    #     req(is.reactive(transfers()))
+    #     
+    #     print(transfers())
+    #     transfers()
+    #   })
   }
 
 shinyApp(ui = ui, server = server)

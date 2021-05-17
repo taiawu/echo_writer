@@ -30,6 +30,8 @@ uploadLayoutUI <- function(id, .placeholder = "Upload layout file") {
 }
 
 
+
+
 uploadLayoutServer <- function(id) {
   moduleServer(id, function(input, output, session) { # data path comes from "input"
 
@@ -50,3 +52,4 @@ uploadLayoutServer <- function(id) {
   })
 
 }
+

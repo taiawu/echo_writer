@@ -1,0 +1,202 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(echowritr)
+source("R/static_text.R")
+```
+
+```{r}
+make_picker_lists <- #___(primary function) formats and names lists for pickerInput___
+  function(groups, 
+           options, 
+           guess_selections) {
+    # groups: vector of names of each group in the pickerInput
+    # options: list of vectors, each vector containing options for that group
+    # guess_selection: the name to look for, e.g. like default selections
+    
+    choices <- 
+      map2(groups, options, picker_names_by_group ) %>%
+      set_names(groups) # names of the groups in pickerInput
+    
+    closest <- # get the closest using stringdist
+      map2(guess_selections, options, function(x,y) guess_col(x, y)[1]) 
+    
+    selected <- # pickerInput needs the uniquely-identified version of this
+      map2(choices, closest, function(x,y) {x[which(names(x)  == y)]})
+    
+    list("choices" = choices, # choices for pickerInput (unique values, non-unique names)
+         "closest" = closest, # the values chosed, in intuitive format for other options 
+         "selected" = selected) # selected, for pickerInput (unique values only)
+  }
+
+repair_options <- 
+  list(
+    groups = # vector of groups for repair pickerInput
+        c("If a compound in the daughter is not in the mother...",
+          "If a compound is present in the mother in multiple concentrations...",
+          "If the daughter contains un-achievably high concentrations..."),
+    
+    options = # list of options for repair pickerInput
+      list(
+        c("Stop and warn me",
+          "Remove these compounds from the daughter"),
+        c("Stop and warn me",
+          "Keep the wells with the highest concentration",
+          "Keep the concentration with the most wells"),
+        c("Stop and warn me",
+          "Remove these compounds from the daughter",
+          "Replace with the highest achieveable concentration",
+          "Scale down the concentration of all wells of this compound")),
+    
+    values = 
+      list(
+        c("stop",
+          "drop"),
+         c("stop",
+          "keep_max",
+          "keep_most"),
+         c("stop",
+          "drop",
+          "make_max",
+          "scale_down")
+      ),
+
+    guess_selections = # default to stop--no un-anncounced repairs without warning
+      c("Stop and warn me",
+        "Stop and warn me",
+        "Stop and warn me")
+  )
+
+repair_list <-    
+  make_picker_lists(
+    groups = repair_options$groups,
+    options = repair_options$options,
+    guess_selections = repair_options$guess_selections)
+
+
+```
+
+
+```{r}
+
+daughter_group_names[["well_col"]]
+
+
+
+
+
+### for the selection cols, which requires user input data
+daughter_group_names <- 
+  tibble(argument = 
+      c("well_col", 
+      "cmpd_col", 
+      "conc_col",
+      "vol_col"),
+      group = groups_daughter_text
+  )
+
+mother_group_names <- 
+  tibble(argument = 
+      c("well_col", 
+      "cmpd_col", 
+      "conc_col"),
+      group = groups_mother_text
+  )
+
+mother_group_names
+
+daughter_group_names
+
+repair_options$guess_selections
+
+```
+Translate repair options
+```{r}
+repair_group_names <- 
+  tibble(argument = 
+    c("repair_missing", 
+      "repair_varied", 
+      "repair_conc"),
+  group = repair_options$groups
+  )
+
+translate_repairs <- 
+  tibble(group = repair_options$groups,
+         response = repair_options$options,
+         values = repair_options$values) %>%
+         unnest(cols = c(response, values)) %>%
+  left_join( . ,repair_group_names)
+
+translate_picked_repairs <- 
+  function(selections, # list from pickerInput, format: {group}<>{choice}
+          translator, # df with cols: argument, and values
+          names_into = c("group", "response"),
+          sep_by = "<>") {
+  trans <- tibble(selected = selections) %>% 
+  separate(selected, 
+           into = names_into, 
+           sep = sep_by) %>%
+  left_join( . ,translator, by = c("group", "response")) 
+    
+  repair_actions <- c(trans$values) %>%
+    set_names(trans$argument)
+  }
+
+### for the repairs, which reauires no reactivity
+repair_actions <- 
+  get_repairs(repair_list$selected, # comes from UI
+                           ranslate_repairs)
+
+# repair_actions[["repair_missing"]] # call it like this
+```
+
+Translate well selections
+```{r}
+daughter_group_names <- 
+  tibble(argument = 
+      c("well_col", 
+      "cmpd_col", 
+      "conc_col",
+      "vol_col"),
+      group = groups_daughter_text
+  )
+
+mother_group_names <- 
+  tibble(argument = 
+      c("well_col", 
+      "cmpd_col", 
+      "conc_col"),
+      group = groups_mother_text
+  )
+  
+translate_col_selections <- 
+  function(selections,
+           group_names,
+           .into = c("group", "response"),
+           .sep = "<>"){
+    
+  trans <- 
+    selections %>%
+    tibble(temp = .) %>%
+    separate(temp, 
+             into = .into, 
+             sep = .sep) %>%
+    left_join( . , group_names, 
+               by = c("group")) 
+
+  selected <- trans$response %>%
+    set_names(trans$argument)
+  }
+
+daughter_col_sel <- 
+  translate_col_selections(daughter_cols, # comes from pickerColServer
+                           daughter_group_names) # static
+
+```
+
+
+

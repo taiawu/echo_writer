@@ -61,7 +61,15 @@ make_picker_lists <- #___(primary function) formats and names lists for pickerIn
 
 #####___
 # should return something that can be used to filter the layout outside of the module
-pickerInputServer <- function(id, data, groups, options, guess_selections, picker_title = "picker_title", picker_label = "picker_label") {
+pickerInputServer <- function(id, 
+                              data, 
+                              groups, 
+                              options, 
+                              guess_selections, 
+                              .multiple = TRUE,
+                              .inline = TRUE,
+                              picker_title = "picker_title", 
+                              picker_label = "picker_label") {
   
   stopifnot(is.reactive(data)) # layout should be reactive
   stopifnot(is.reactive(groups)) # maybe based on data in some uses
@@ -93,8 +101,8 @@ pickerInputServer <- function(id, data, groups, options, guess_selections, picke
             label = picker_label, # user can change the label
             choices = picker_lists()$choices, # displays NAMES of the list elements, not elements itself
             selected =  picker_lists()$selected, #list(var1[1], var2[2], var3[3]), # also works
-            multiple = TRUE,
-            inline = TRUE, # put label in-line with drop-downs
+            multiple = .multiple,
+            inline = .inline, # put label in-line with drop-downs
             options = 
               pickerOptions( # good place for ... in later version
                 "max-options-group" = 1,
@@ -106,15 +114,14 @@ pickerInputServer <- function(id, data, groups, options, guess_selections, picke
     })
     
     reactive(input$take_these)
-  })
+ })
 }
 
 
 pickerInputUI <- function(id) {
   ns <- NS(id)
   tagList(
-    
-    uiOutput(ns("picker")),
+      uiOutput(ns("picker")),
     verbatimTextOutput(ns("selection"))
   )
 }
@@ -129,7 +136,15 @@ pickColUI <- function(id) {
   )
 }
 
-pickColServer <- function(id, data, groups, guess_selections, drop_options = "", picker_title = "picker_title", picker_label = "picker_label") {
+pickColServer <- function(id, 
+                          data, # used to get options
+                          groups, # passed to pickerInputServer
+                          guess_selections, # passed to pickerInputServer
+                          drop_options = "", 
+                          .multiple = TRUE,
+                          .inline = TRUE,
+                          picker_title = "picker_title", 
+                          picker_label = "picker_label") {
   
   stopifnot(is.reactive(data)) # layout should be reactive
   stopifnot(is.reactive(groups)) # maybe based on data in some uses
@@ -150,11 +165,13 @@ pickColServer <- function(id, data, groups, guess_selections, drop_options = "",
     
     picker_list <- pickerInputServer("picker_input",
                                      data,
-                                     groups = groups,
-                                     options = options,
-                                     guess_selections = guess_selections,
-                                     picker_title = picker_title, 
-                                     picker_label = picker_label)
+                                     groups = groups, # passed directly
+                                     options = options, # calculated above from data()
+                                     guess_selections = guess_selections, # passed directly
+                                     .multiple = .multiple,
+                                     .inline = .inline,
+                                     picker_title = picker_title, # passed directly
+                                     picker_label = picker_label) # passed directly
     
     output$selection_external <- renderPrint(picker_list())
     reactive(picker_list())
