@@ -1,0 +1,12 @@
+name: echowritr
+title: echowritr
+username:
+account: gestwickilab
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4152400
+bundleId: 4614533
+url: https://gestwickilab.shinyapps.io/echowritr/
+when: 1621405975.30137
+asMultiple: FALSE
+asStatic: FALSE
